@@ -1,0 +1,39 @@
+# autolog — serverKhyanaltLog цуглуулагч. Энэ файлыг autolog.exe-ийн хажууд
+# config.toml нэрээр хуулж бөглөнө (config.toml нь .gitignore-д орсон).
+
+url = "https://turees.zevtabs.mn/api"
+
+# Endpoint-ууд Zevtabs байгууллагын CAdmin1 эрх шаарддаг (tokenShalgakh + adminShalgay).
+# Бэлэн JWT өгөх, эсвэл нэвтрэх нэр/нууц үгээр автоматаар token авна.
+# Token-ий хугацаа дуусахад (401) нэвтрэх нэр/нууц үг байвал дахин нэвтэрнэ.
+token = ""
+nevtrekhNer = "CAdmin1"
+nuutsUg = ""
+baiguullagiinId = "612f457d185280db676d0b51"
+
+# Өдөрт нэг удаа энэ цагт (Asia/Ulaanbaatar) өмнөх 24 цагийн өгөгдлийг татаж тайлан гаргана.
+# Service асахад тухайн өдрийн тайлан гараагүй, цаг нь өнгөрсөн бол шууд гаргана.
+tailan_tsag = "21:00"
+# Үндсэн эх сурвалж: /serverKhyanalt/tailan (сервер талын нэгтгэл, limit-гүй).
+# true бол нэг DB-д бичдэг бүх серверийн (turees, rently) log-ийг host-оор нь ялгаж оруулна.
+bukh_host = false
+# Backend-д /serverKhyanalt/tailan deploy хийгдээгүй үеийн нөөц арга:
+# REQUEST_SLOW-ийн route/method/status/khugatsaaMs зөвхөн /serverKhyanalt/requests-д байдаг
+requests_tatakh = true
+requests_limit = 100         # /serverKhyanalt/requests?limit= (backend-ийн дээд хязгаар 100)
+udaan_bosgo_ms = 5000        # backend KHYANALT_UDAAN_MS — жинхэнэ удаан хүсэлтийн босго
+request_log_bosgo_ms = 1000  # backend KHYANALT_REQUEST_LOG_MS — REQUEST_SLOW бичих босго
+khadgalakh_khonog = 30       # local хадгалалт (backend-ийн TTL-тэй адил)
+timeout_secs = 20
+
+# ─── Claude Code автомат засвар ───────────────────────────────────────────────
+# Өдрийн тайланд P1/P2 байвал `claude -p`-ээр repo-уудад засвар хийлгэнэ.
+# Commit хийгдээгүй өөрчлөлттэй repo-г алгасна. commit/push/deploy хориотой.
+# Service-ээр ажиллуулах бол Claude нэвтэрсэн Windows хэрэглэгчийн эрхээр ажиллуулна
+# (LocalSystem-д Claude-ийн нэвтрэлт байхгүй) — README-г үз.
+claude_ajilluulakh = false
+claude_exe = "C:/Users/pc/.local/bin/claude.exe"
+claude_repos = ["D:/Work/tureesBack", "D:/Work/turees", "D:/Work/parking-v2"]
+claude_budget_usd = 5.0      # нэг шалгалтын зардлын дээд хязгаар
+claude_timeout_min = 60
+claude_model = ""            # хоосон бол Claude Code-ийн анхдагч загвар
