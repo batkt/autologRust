@@ -139,7 +139,7 @@ fn prompt_beltgey(
         )
     };
     format!(
-        r#"Чи turees системийн шөнийн serverKhyanaltLog шалгалтыг хийж байна ({ognoo}).
+        r#"Чи turees системийн шөнийн serverKhyanaltLog болон pm2 error log-ийн шалгалтыг хийж байна ({ognoo}).
 
 Эх нотолгоо (зөвхөн унших):
 - Өдрийн тайлан: {md}
@@ -153,7 +153,8 @@ fn prompt_beltgey(
 1. Тайлангаас P1 (HTTP 5xx, серверийн гацалт), дараа нь P2 (жинхэнэ удаан, тасарсан, frontend гацалт, баазын bottleneck) асуудлуудыг сонго. REQUEST_SLOW шошгыг khugatsaaMs болон босгыг шалгалгүйгээр удаан гэж бүү үз. Тайлангийн "Тэмдэглэл", "Цуглуулалтын тасалдал" хэсгээс хамрах хүрээний хязгаарыг харгалз.
 2. Асуудал бүрийг route-аас эх код руу мөшгиж, засвар хийхээс өмнө root cause-ийн нотолгоог ол. "алдаа / хуудас" багана болон "Алдааны жишээ" хэсэгт `bairshil` (file:line), stack, message байвал тэр мөрөөс эхэл — route-аар таамаглахгүй. Ангилал VALIDATION боловч 5xx бол kod дутуу throw гэсэн үг. BROWSER_GATSALT-д хуудас, script (invoker/url/funktsiin)-ээр frontend кодыг ол. "тухайн үеийн сервер" хэвийн бол backend-ийг бүү зас — асуудал browser талд. Script url нь `/_next/static/chunks/*.js` (minified, source map-гүй) бол мөрийн дугаарыг эх кодтой бүү тулга; invoker `MessagePort.onmessage` нь React scheduler — тухайн хуудасны component-ийн хүнд render (virtualization-гүй том жагсаалт, render доторх sort/filter/map, useMemo-гүй тооцоолол, давтагдах setState)-ийг хай. "Frontend tab унасан" (CRASH) нь ихэвчлэн санах ой: Browser санах ой (JS heap) бага байсан ч видео/stream, canvas, interval/listener-ийн цэвэрлэгээ (useEffect cleanup), дахин холбогдох давталт байгаа эсэхийг шалга. "гацахаас өмнөх API" жагсаалтад `:dotoodIp` (камер, самбар зэрэг LAN төхөөрөмж) руу сүлжээний алдаа давтагдаж байвал retry-ийн backoff/хязгаар, унтарсан төхөөрөмжийн үед resource чөлөөлж байгаа эсэхийг шалга. requestId-г тайлангийн удаан/5xx хүсэлтийн requestId-тэй тулгаж сервер талын хугацааг ол. Удаан хүсэлтэд "гадаад / db ms" баганыг харьцуул: гадаад хугацаа нийт хугацааны ихэнхийг эзэлж байвал root cause нь тухайн host (QPay, eBarimt г.м.) — манай кодод timeout/retry зөв эсэхийг л шалга; db их бол query/index; хоёулаа бага бол манай код (sync тооцоолол, давталт). Байршил "мэдээлэлгүй" 5xx-ийг "шалтгаан олдсонгүй" гэхээсээ өмнө тухайн route aldaaBarigch-ээр дамжилгүй шууд res.status(500) буцааж байгаа эсэхийг шалга.
 3. Нотолгоо баттай бол жижиг, төвлөрсөн засвар хийж, боломжтой бол regression тест нэм. Баталж чадахгүй бол засварлахгүй — зөвлөмж болгон бич.
-4. Холбогдох тест, lint, type check, build ажиллуул. Унасан бол унасан гэж бич, давсан гэж бүү хэл.
+4. Тайлангийн "pm2 error log (console.error)" хэсэг нь production-ийн pm2 `tureesBack-error*.log`-ийн нэгтгэл (message дахь ID, тоо, утга `:id`/`:n`/`…` болж хасагдсан). P1/P2-ийн дараа олон удаа давтагдсан, олон instance-д гарсан бүлгээс эхэл: байршил/stack байвал тэр мөрөөс, байхгүй бол message-ийн тогтмол хэсгийг (console.error-ийн текст, алдааны нэр) repo-гоос Grep-ээр хайж эх кодыг ол. Барьж аваагүй promise rejection, undefined-ийн property уншилт зэрэг жинхэнэ алдааг засна; хэвийн урсгалд (validation, хэрэглэгчийн буруу оролт) console.error хэт олон бичиж байгаа бол логийн түвшин/давтамжийг багасгах засвар эсвэл зөвлөмж өг. 5xx бүлэгтэй ижил үндэстэй бол нэг асуудал гэж тооц.
+5. Холбогдох тест, lint, type check, build ажиллуул. Унасан бол унасан гэж бич, давсан гэж бүү хэл.
 
 Хатуу дүрэм:
 - git commit, push, deploy, production service restart хийхгүй. Өөрчлөлт зөвхөн local working tree-д үлдэнэ.
@@ -335,6 +336,7 @@ mod tests {
         assert!(p.contains("git commit, push, deploy"));
         assert!(p.contains("D:/Work/parking-v2") && p.contains("хүрэхгүй"));
         assert!(p.contains("## Түүхэнд нэмэх"));
+        assert!(p.contains("pm2 error log (console.error)"));
     }
 
     #[test]

@@ -115,7 +115,69 @@ pub struct Tailan {
     pub tasaldluud: Vec<Tasaldal>,
     /// /serverKhyanalt/odoo — тайлан гаргах агшны instance-ийн санах ой дахь төлөв
     pub odoo: Option<OdooTovch>,
+    /// /serverKhyanalt/pm2Aldaa — pm2 error log (console.error)-ийн нэгтгэл
+    pub pm2: Option<Pm2Aldaa>,
     pub temdeglel: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct Pm2Aldaa {
+    pub niit: usize,
+    pub bulgemuud: Vec<Pm2Bulgem>,
+    /// Log файл хэт том тул цонхны эхэн хэсэг уншигдаагүй
+    pub dutuu: bool,
+    pub khyazgaar_khursen: bool,
+    /// Сервер log хавтсыг уншиж чадаагүй
+    pub aldaa: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct Pm2Bulgem {
+    pub too: usize,
+    /// ID, тоо, хэрэглэгчийн утгыг хассан message (бүлгийн түлхүүр)
+    pub tulkhuur: String,
+    pub bairshil: Option<String>,
+    pub stack: Vec<String>,
+    pub instance: Vec<String>,
+    pub ekhnii: String,
+    pub suuliin: String,
+}
+
+/// GET /serverKhyanalt/pm2Aldaa-ийн хариу. murnuud (түүхий мөр)-ийг авахгүй —
+/// тайланд зөвхөн сервер талд цэвэрлэсэн бүлгийн түлхүүр орно.
+pub fn pm2_unshiy(v: &Value) -> Pm2Aldaa {
+    let tsag = |b: &Value, k: &str| {
+        b.get(k)
+            .and_then(Value::as_str)
+            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+            .map(|d| ub_tsag(&d.with_timezone(&Utc)))
+            .unwrap_or_default()
+    };
+    let bulgemuud = v
+        .get("bulgemuud")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|b| Pm2Bulgem {
+            too: b.get("too").and_then(Value::as_u64).unwrap_or(0) as usize,
+            tulkhuur: b.get("tulkhuur").and_then(Value::as_str).unwrap_or("").to_string(),
+            bairshil: b.get("bairshil").and_then(Value::as_str).map(str::to_string),
+            stack: str_jagsaalt(b.get("stack")).collect(),
+            instance: str_jagsaalt(b.get("instance")).collect(),
+            ekhnii: tsag(b, "ekhnii"),
+            suuliin: tsag(b, "suuliin"),
+        })
+        .collect();
+    Pm2Aldaa {
+        niit: v.get("niit").and_then(Value::as_u64).unwrap_or(0) as usize,
+        bulgemuud,
+        dutuu: v
+            .get("failuud")
+            .and_then(Value::as_array)
+            .is_some_and(|f| f.iter().any(|f| f.get("dutuu").and_then(Value::as_bool) == Some(true))),
+        khyazgaar_khursen: v.get("khyazgaarKhursen").and_then(Value::as_bool) == Some(true),
+        aldaa: v.get("aldaa").and_then(Value::as_str).map(str::to_string),
+    }
 }
 
 #[derive(Serialize)]
@@ -636,6 +698,7 @@ fn duusgay(
         bulgemuud,
         tasaldluud,
         odoo,
+        pm2: None,
         temdeglel,
     }
 }
@@ -767,6 +830,47 @@ pub fn markdown(t: &Tailan) -> String {
                 }
             }
             s.push('\n');
+        }
+    }
+
+    if let Some(p) = &t.pm2 {
+        s.push_str(&format!(
+            "\n## pm2 error log (console.error)\n\nЦонхонд {} бичлэг, {} төрөл (ID, тоо, хэрэглэгчийн утгыг хассан message + байршлаар бүлэглэсэн).\n\n",
+            p.niit,
+            p.bulgemuud.len()
+        ));
+        if let Some(a) = &p.aldaa {
+            s.push_str(&format!("Уншиж чадсангүй: {a}\n"));
+        }
+        if p.dutuu {
+            s.push_str("Log файл хэт том — цонхны эхэн хэсэг уншигдаагүй (файл бүрийн сүүлийн 16MB).\n\n");
+        }
+        if !p.bulgemuud.is_empty() {
+            s.push_str("| тоо | message | байршил | instance | эхэнд | сүүлд |\n|---:|---|---|---|---|---|\n");
+            for b in &p.bulgemuud {
+                s.push_str(&format!(
+                    "| {} | `{}` | {} | {} | {} | {} |\n",
+                    b.too,
+                    b.tulkhuur.replace('|', "\\|").replace('`', "'"),
+                    b.bairshil.as_ref().map(|x| format!("`{x}`")).unwrap_or_else(|| "-".into()),
+                    b.instance.join(", "),
+                    b.ekhnii,
+                    b.suuliin
+                ));
+            }
+            if p.khyazgaar_khursen {
+                s.push_str("\nБүлгийн тоо серверийн дээд хязгаарт (200) хүрсэн — цөөн тохиолдолтой зарим нь орхигдсон.\n");
+            }
+            let stacktai: Vec<&Pm2Bulgem> = p.bulgemuud.iter().filter(|b| b.stack.len() > 1).take(10).collect();
+            if !stacktai.is_empty() {
+                s.push_str("\n### pm2 алдааны stack\n\n");
+                for b in stacktai {
+                    s.push_str(&format!("- `{}` ({}×)\n", b.tulkhuur.replace('`', "'"), b.too));
+                    for f in &b.stack {
+                        s.push_str(&format!("  - `{f}`\n"));
+                    }
+                }
+            }
         }
     }
 
@@ -993,6 +1097,36 @@ mod tests {
         assert!(md.contains("`/api/zogsoolTusBur` — 200 · 19ms · 035fb253"));
         assert!(md.contains("хэвийн, асуудал browser талд"));
         assert!(!md.contains("7476") && !md.contains("192.168"));
+    }
+
+    #[test]
+    fn pm2_aldaa_tailand_orno() {
+        let v = json!({
+            "niit": 7,
+            "khyazgaarKhursen": false,
+            "failuud": [{"ner": "tureesBack-error-0.log", "dutuu": true}],
+            "bulgemuud": [
+                {"tulkhuur": "TypeError: Cannot read properties of undefined (reading 'map')", "too": 5,
+                 "bairshil": "controller/geree.js:120", "stack": ["controller/geree.js:120:15 gereeJagsaalt", "routes/gereeRoute.js:40:3"],
+                 "instance": ["0", "3"], "ekhnii": "2026-10-27T01:00:00.000Z", "suuliin": "2026-10-27T12:00:00.000Z"},
+                {"tulkhuur": "qpay aldaa :n | :email", "too": 2, "bairshil": null, "stack": [], "instance": ["-"],
+                 "ekhnii": "2026-10-27T02:00:00.000Z", "suuliin": "2026-10-27T03:00:00.000Z"}
+            ],
+            "murnuud": [{"tekst": "qpay aldaa 99112233 a@b.mn"}]
+        });
+        let mut tl = tailan_serverees(&json!({"bulgemuud": []}), "d", t("2026-10-26T13:00:00Z"), t("2026-10-27T13:00:00Z"), &BOSGO, None);
+        tl.pm2 = Some(pm2_unshiy(&v));
+        let p = tl.pm2.as_ref().unwrap();
+        assert_eq!((p.niit, p.bulgemuud.len(), p.dutuu), (7, 2, true));
+        assert_eq!(p.bulgemuud[0].suuliin, "2026-10-27 20:00:00");
+        let md = markdown(&tl);
+        assert!(md.contains("## pm2 error log"));
+        assert!(md.contains("| 5 | `TypeError: Cannot read properties of undefined (reading 'map')` | `controller/geree.js:120` | 0, 3 |"));
+        assert!(md.contains("qpay aldaa :n \\| :email"));
+        assert!(md.contains("  - `routes/gereeRoute.js:40:3`"));
+        assert!(md.contains("эхэн хэсэг уншигдаагүй"));
+        // Түүхий мөр тайланд орохгүй
+        assert!(!md.contains("99112233") && !md.contains("a@b.mn"));
     }
 
     #[test]

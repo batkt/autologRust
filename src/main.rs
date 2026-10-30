@@ -3,7 +3,7 @@ mod report;
 mod store;
 
 use chrono::{DateTime, Duration as ChronoDuration, Local, NaiveDate, NaiveTime, SecondsFormat, TimeZone, Utc};
-use report::{markdown, tailan_beltgey, tailan_serverees, ub, Bosgo};
+use report::{markdown, pm2_unshiy, tailan_beltgey, tailan_serverees, ub, Bosgo};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -67,6 +67,9 @@ struct Config {
     bukh_host: bool,
     #[serde(default = "default_requests_limit")]
     requests_limit: usize,
+    /// /serverKhyanalt/pm2Aldaa — pm2 error log (console.error)-ийг тайланд нэмэх
+    #[serde(default = "default_true")]
+    pm2_aldaa_tatakh: bool,
     #[serde(default = "default_tailan_tsag")]
     tailan_tsag: String,
     #[serde(default = "default_udaan_bosgo")]
@@ -503,12 +506,25 @@ impl App {
         Ok(v)
     }
 
+    /// /serverKhyanalt/pm2Aldaa — тайлангийн цонхны pm2 error log-ийн нэгтгэл (түүхий мөргүй).
+    async fn pm2_tatay(&mut self, ekhlel: DateTime<Utc>, tugsgul: DateTime<Utc>) -> Result<Value, String> {
+        let iso = |t: DateTime<Utc>| t.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let v = self
+            .api
+            .get_json(&format!("/serverKhyanalt/pm2Aldaa?ekhlel={}&tugsgul={}", iso(ekhlel), iso(tugsgul)))
+            .await?;
+        if v.get("bulgemuud").and_then(Value::as_array).is_none() {
+            return Err("bulgemuud массив алга".into());
+        }
+        Ok(v)
+    }
+
     /// ekhlel..tugsgul цонхны өгөгдлийг татаж тайланг reports/<ner>.md, .json болгон бичнэ.
     /// Эхлээд /serverKhyanalt/tailan (limit-гүй), backend-д байхгүй бол хуучин endpoint-ууд.
     async fn tailan_bichiy(&mut self, ner: &str, ognoo: &str, ekhlel: DateTime<Utc>, tugsgul: DateTime<Utc>) -> Option<TailanUr> {
         // Юу ч татаагүй бол хуурамч "0 бичлэг" тайлан гаргахгүй — дараагийн шалгалтаар дахин оролдоно
         self.nevtersen().await.ok()?;
-        let tailan = match self.server_tailan(ekhlel, tugsgul).await {
+        let mut tailan = match self.server_tailan(ekhlel, tugsgul).await {
             Ok(v) => {
                 let odoo = self.odoo_tatay().await;
                 self.state.suuliin_tatalt = Some(Utc::now());
@@ -538,6 +554,15 @@ impl App {
                 )
             }
         };
+        if self.config.pm2_aldaa_tatakh {
+            match self.pm2_tatay(ekhlel, tugsgul).await {
+                Ok(v) => tailan.pm2 = Some(pm2_unshiy(&v)),
+                Err(e) => {
+                    log_write(&self.log, "WARN", &format!("/serverKhyanalt/pm2Aldaa: {e}"));
+                    tailan.temdeglel.push(format!("pm2 error log татаж чадсангүй (/serverKhyanalt/pm2Aldaa: {e})."));
+                }
+            }
+        }
         let md = markdown(&tailan);
         let md_path = self.reports_dir.join(format!("{ner}.md"));
         let json_path = self.reports_dir.join(format!("{ner}.json"));
@@ -631,7 +656,7 @@ impl App {
             self.state_khadgal();
         }
         match anhaarakh_too(&json) {
-            Some(0) => log_write(&self.log, "INFO", "P1/P2 асуудал алга — Claude ажиллуулсангүй"),
+            Some(0) => log_write(&self.log, "INFO", "P1/P2 асуудал, pm2 алдаа алга — Claude ажиллуулсангүй"),
             Some(_) => self.claude_ajilluul(ognoo, &md, &json).await,
             None => log_write(&self.log, "ERROR", &format!("{} уншиж чадсангүй", json.display())),
         }
@@ -664,15 +689,17 @@ struct TailanUr {
     md: String,
 }
 
-/// Тайлангийн JSON дахь P1 + P2 бүлгийн тоо.
+/// Тайлангийн JSON дахь P1 + P2 бүлгийн тоо + pm2 error log-ийн бүлгийн тоо.
 fn anhaarakh_too(json: &Path) -> Option<usize> {
     let v: Value = serde_json::from_str(&fs::read_to_string(json).ok()?).ok()?;
     let bulgemuud = v.get("bulgemuud")?.as_array()?;
+    let pm2 = v.pointer("/pm2/bulgemuud").and_then(Value::as_array).map_or(0, Vec::len);
     Some(
         bulgemuud
             .iter()
             .filter(|b| b.get("ach").and_then(Value::as_u64).is_some_and(|a| a <= 2))
-            .count(),
+            .count()
+            + pm2,
     )
 }
 

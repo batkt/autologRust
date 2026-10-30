@@ -21,6 +21,9 @@ bukh_host = false
 # REQUEST_SLOW-ийн route/method/status/khugatsaaMs зөвхөн /serverKhyanalt/requests-д байдаг
 requests_tatakh = true
 requests_limit = 100         # /serverKhyanalt/requests?limit= (backend-ийн дээд хязгаар 100)
+# /serverKhyanalt/pm2Aldaa — production-ийн pm2 tureesBack-error*.log (console.error)-ийн
+# нэгтгэлийг тайланд нэмнэ. pm2 алдаа байвал P1/P2 байхгүй ч Claude ажиллана.
+pm2_aldaa_tatakh = true
 udaan_bosgo_ms = 5000        # backend KHYANALT_UDAAN_MS — жинхэнэ удаан хүсэлтийн босго
 request_log_bosgo_ms = 1000  # backend KHYANALT_REQUEST_LOG_MS — REQUEST_SLOW бичих босго
 khadgalakh_khonog = 30       # local хадгалалт (backend-ийн TTL-тэй адил)

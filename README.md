@@ -11,6 +11,7 @@
 | `POST /ajiltanNevtrey` | JWT (config-д `token` байхгүй эсвэл 401 болсон үед) |
 | **`GET /serverKhyanalt/tailan?ekhlel=&tugsgul=`** | **Үндсэн.** Цонхны бүх log-ийг сервер талд `turul/route/method/status/host`-оор нэгтгэсэн (limit-гүй), backend-ийн бодит босго (`tokhirgoo`). `bukh_host = true` → `&bukhHost=1` |
 | `GET /serverKhyanalt/odoo` | Тухайн агшны instance-ийн төлөв, санах ой дахь удаан хүсэлтүүд |
+| `GET /serverKhyanalt/pm2Aldaa?ekhlel=&tugsgul=` | pm2 `tureesBack-error*.log` (console.error, барьж аваагүй алдаа)-ийг message + байршлаар бүлэглэсэн нэгтгэл. ID, тоо, утас, email, IP сервер талд хасагдана; түүхий мөр (`?murnuud=1`) зөвхөн самбарт. `pm2_aldaa_tatakh = false` бол унтарна |
 | `GET /serverKhyanalt` ба `?turul=<төрөл>` | *Нөөц:* REQUEST_SLOW-оос бусад log, төрөл бүрт сүүлийн 200 |
 | `GET /serverKhyanalt/requests?limit=100` | *Нөөц:* REQUEST_SLOW-ийн `route/method/status/khugatsaaMs` (`requests_tatakh = false` бол унтарна) |
 
@@ -24,6 +25,7 @@
 - `turul / request.method / request.route / request.status`-аар бүлэглэж тоо, дундаж/max `khugatsaaMs`, eventLoop max, тасарсан тоо, сүүлд гарсан цаг (УБ цаг)
 - Ач холбогдол: **P1** — 5xx, GATSALT/WATCHDOG/INSTANCE_GATSSAN; **P2** — max ≥ `udaan_bosgo_ms`, тасарсан, BROWSER_GATSALT, DB_UDAAN, CPU; **P3** — босгоос доош REQUEST_SLOW, 4xx
 - BROWSER_GATSALT: tab унасан (CRASH) ба хөлдсөнийг тусад нь, гацахаас өмнөх API дуудлагууд (url нь query/IP/ID-гүй, LAN IP нь `:dotoodIp`), тухайн үеийн бүх instance-ийн CPU/eventLoop-ийн дээд утга
+- «pm2 error log (console.error)»: давтагдсан алдаа, тоо, байршил (`file:line`), instance, эхэнд/сүүлд гарсан цаг, stack
 - API-ийн limit хүрч цонхыг бүрэн хамраагүй бол «Цуглуулалтын тасалдал»-д тэмдэглэнэ
 - tailbar, байгууллагын нэр, IP, ажилтны нэр, URL query/ID тайланд орохгүй
 
@@ -31,7 +33,7 @@
 
 ## Claude Code-оор автомат засвар
 
-`claude_ajilluulakh = true` бол өдрийн тайланд P1/P2 бүлэг байхад `claude -p` (headless) ажиллана:
+`claude_ajilluulakh = true` бол өдрийн тайланд P1/P2 бүлэг эсвэл pm2 error log-ийн алдаа байхад `claude -p` (headless) ажиллана:
 
 1. `claude_repos`-ийн repo бүрт `git status --porcelain` шалгана — **commit хийгдээгүй өөрчлөлттэй repo-г алгасна** (таны ажил, эсвэл өмнөх өдрийн хянагдаагүй Claude засвар хадгалагдана).
 2. Prompt: тайлан (`reports/<огноо>.md/.json`), түүх (`reports/claude-tuukh.md`), шөнийн шалгалтын журам, safety дүрэм.
